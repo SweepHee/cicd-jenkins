@@ -40,7 +40,7 @@
 
 ## Jenkinsfile작성
 
-* [젠킨스파일 링크](http://test.com) --- FIXME
+* [젠킨스파일 링크](https://github.com/SweepHee/cicd-jenkins/blob/main/dev-api/Jenkinsfile)
 ---
 ### 최상단
 ```yaml
@@ -166,6 +166,7 @@ post {
 ---
 
 ## shell-script 작성
+* [shell-script 링크](https://github.com/SweepHee/cicd-jenkins/blob/main/shell-script/dev-api-deploy.sh)
 - 반드시 `dev-api-deploy.sh` 로 만들어줘야 한다 (jenkinsfile에서 해당 이름으로 작성) 
 ```yaml
 # 현재 열려있는 api서버 컨테이너 포트가 9003, 9004인지 확인
@@ -230,7 +231,7 @@ fi
 
 ```
 
-## nginx 
+## nginx
 - 환경변수 파일 `/etc/nginx/conf.d/dev-api-service-url.inc` 만들기
 ```text
 // nginx에서는 9001로 들어온 요청을 $dev_api_service_url로 포트포워딩 처리를 해둬야 한다
