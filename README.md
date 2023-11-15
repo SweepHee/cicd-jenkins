@@ -33,8 +33,10 @@
 - 젠킨스에 메인 파이프라인 등록 (이 과정은 생략합니다)
 
 ## 순서
-- [Jenkinsfile작성](#Jenkinsfile작성) --- FIXME
-- [shell script 작성](#shellscript작성) --- FIXME
+- [Jenkinsfile작성](#Jenkinsfile작성)
+- [shell script 작성](#shell-script 작성)
+- [nginx 설정 작성](#nginx)
+- [Dockerfile 작성](#Dockerfile)
 
 ## Jenkinsfile작성
 
@@ -228,7 +230,7 @@ fi
 
 ```
 
-### nginx 
+## nginx 
 - 환경변수 파일 `/etc/nginx/conf.d/dev-api-service-url.inc` 만들기
 ```text
 // nginx에서는 9001로 들어온 요청을 $dev_api_service_url로 포트포워딩 처리를 해둬야 한다
@@ -264,7 +266,7 @@ server {
 }
 ```
 
-### Dockerfile
+## Dockerfile
 ```yaml
 FROM openjdk:17-jdk
 ARG JAR_FILE=dev-api-1.0-SNAPSHOT.jar
