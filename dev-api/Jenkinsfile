@@ -1,0 +1,147 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Start') {
+             steps {
+                slackSend (channel: '#ci-cd', color: '#6DDFE9', message: "START: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+             }
+        }
+
+        /* Main Branch CI */
+        stage('Main Build') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'chmod +x gradlew'
+                sh './gradlew clean'
+                sh './gradlew dev-data:generateJooq'
+                sh './gradlew dev-api:bootJarWithOpsShell'
+            }
+        }
+
+        /* Main Branch CD */
+        stage('Main Docking - Jar file') {
+            when {
+                branch 'main'
+            }
+            steps([$class: 'BapSshPromotionPublisherPlugin']) {
+                sshPublisher(
+                    continueOnError: false,
+                    failOnError: true,
+                    publishers: [
+                        sshPublisherDesc(
+                            configName: "dev",
+                            verbose: true,
+                            transfers: [
+                                sshTransfer(
+                                    sourceFiles: "dev-api/build/libs/*",
+                                    removePrefix: "dev-api/build/libs",
+                                    remoteDirectory: "/dev-api",
+                                    /* execCommand: "chmod +x /home/dev/dev-api/*.sh && sh /home/dev/dev-api/dev-api.sh" */
+                                )
+                            ]
+                        )
+                    ]
+                )
+            }
+        }
+
+        stage('Docker build') {
+            when {
+               branch 'main'
+            }
+            steps {
+                sshPublisher(
+                    continueOnError: false, failOnError: true,
+                    publishers: [
+                        sshPublisherDesc(
+                        configName: "dev",
+                            verbose: true,
+                            transfers: [
+                                sshTransfer(
+                                    execCommand: "cd dev-api && pwd && docker build --tag dev/dev-api ." //원격지에서 실행할 커맨드
+                                )
+                            ]
+                        )
+                    ]
+                )
+            }
+        }
+
+      stage('Switch docker container') {
+            when {
+               branch 'main'
+            }
+            steps {
+                sshPublisher(
+                    continueOnError: false, failOnError: true,
+                    publishers: [
+                        sshPublisherDesc(
+                        configName: "dev",
+                            verbose: true,
+                            transfers: [
+                                sshTransfer(
+                                    execCommand: "cd dev-api && ./dev-api-deploy.sh" //원격지에서 실행할 커맨드
+                                )
+                            ]
+                        )
+                    ]
+                )
+            }
+        }
+
+        // 스테이징 환경 빌드
+        stage('Stage Build') {
+
+            when {
+                branch 'stage'
+            }
+
+            steps {
+                sh 'chmod +x gradlew'
+                sh './gradlew clean'
+                sh './gradlew dev-data:generateJooq'
+                sh './gradlew dev-api:bootJarWithStageShell'
+            }
+        }
+
+        // 스테이징 환경 도킹
+        stage('Stage Docking') {
+            when {
+                branch 'stage'
+            }
+            steps([$class: 'BapSshPromotionPublisherPlugin']) {
+                sshPublisher(
+                        continueOnError: false,
+                        failOnError: true,
+                        publishers: [
+                                sshPublisherDesc(
+                                        configName: "dev-stage",
+                                        verbose: true,
+                                        transfers: [
+                                                sshTransfer(
+                                                        sourceFiles: "dev-api/build/libs/*",
+                                                        removePrefix: "dev-api/build/libs",
+                                                        remoteDirectory: "/dev-api",
+                                                        execCommand: "chmod +x /home/dev/dev-api/*.sh && sh /home/dev/dev-api/dev-api.sh"
+                                                )
+                                        ]
+                                )
+                        ]
+                )
+            }
+        }
+
+    }
+
+    post {
+        success {
+            slackSend (channel: '#ci-cd', color: '#6DDFE9', message: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+        }
+        failure {
+            slackSend (channel: '#ci-cd', color: '#EC88DF', message: "FAIL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+        }
+    }
+}

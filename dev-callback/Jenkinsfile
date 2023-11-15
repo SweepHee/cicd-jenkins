@@ -1,0 +1,104 @@
+pipeline {
+    agent any
+
+    stages {
+        stage('Start') {
+             steps {
+                slackSend (channel: '#ci-cd', color: '#6DDFE9', message: "START: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+             }
+        }
+
+        /* Main Branch CI */
+        stage('Main Build') {
+            when {
+                branch 'main'
+            }
+            steps {
+                sh 'chmod +x gradlew'
+                sh './gradlew clean'
+                sh './gradlew dev-callback:generateJooq'
+                sh './gradlew dev-callback:bootJarWithOpsShell'
+            }
+        }
+
+        /* Main Branch CD */
+        stage('Main Docking - Jar file') {
+            when {
+                branch 'main'
+            }
+            steps([$class: 'BapSshPromotionPublisherPlugin']) {
+                sshPublisher(
+                    continueOnError: false,
+                    failOnError: true,
+                    publishers: [
+                        sshPublisherDesc(
+                            configName: "dev",
+                            verbose: true,
+                            transfers: [
+                                sshTransfer(
+                                    sourceFiles: "dev-callback/build/libs/*",
+                                    removePrefix: "dev-callback/build/libs",
+                                    remoteDirectory: "/dev-callback",
+                                    /* execCommand: "chmod +x /home/dev/dev-callback/*.sh && sh /home/dev/dev-callback/dev-callback.sh" */
+                                )
+                            ]
+                        )
+                    ]
+                )
+            }
+        }
+
+        stage('Docker build') {
+                    when {
+                       branch 'main'
+                    }
+                    steps {
+                        sshPublisher(
+                            continueOnError: false, failOnError: true,
+                            publishers: [
+                                sshPublisherDesc(
+                                configName: "dev",
+                                    verbose: true,
+                                    transfers: [
+                                        sshTransfer(
+                                            execCommand: "cd dev-callback && pwd && docker build --tag dev/dev-callback ." //원격지에서 실행할 커맨드
+                                        )
+                                    ]
+                                )
+                            ]
+                        )
+                    }
+                }
+
+              stage('Switch docker container') {
+                    when {
+                       branch 'main'
+                    }
+                    steps {
+                        sshPublisher(
+                            continueOnError: false, failOnError: true,
+                            publishers: [
+                                sshPublisherDesc(
+                                configName: "dev",
+                                    verbose: true,
+                                    transfers: [
+                                        sshTransfer(
+                                            execCommand: "cd dev-callback && ./dev-callback-deploy.sh" //원격지에서 실행할 커맨드
+                                        )
+                                    ]
+                                )
+                            ]
+                        )
+                    }
+                }
+    }
+
+    post {
+        success {
+            slackSend (channel: '#ci-cd', color: '#6DDFE9', message: "SUCCESS: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+        }
+        failure {
+            slackSend (channel: '#ci-cd', color: '#EC88DF', message: "FAIL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' (${env.BUILD_URL})")
+        }
+    }
+}
